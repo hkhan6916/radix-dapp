@@ -1,118 +1,253 @@
-import Image from "next/image";
-import { Inter } from "next/font/google";
+import { useRadixToolkit } from "@/util/contexts";
+import { useCallback, useEffect, useState } from "react";
+import { StateEntityDetailsVaultResponseItem } from "@radixdlt/radix-dapp-toolkit";
+import { Button } from "@/components/Button";
+import getSquashedTokenData, {
+  Resource,
+} from "@/util/helpers/getSquashedTokenData";
+import { AccountAddress, ResourceAddress, Ticker, config } from "@/util/config";
+import { TokenDropdown } from "@/components/TokenDropdown";
+import { swapTokenManifest } from "@/util/manifests/transactionManifest";
+import { IoIosClose } from "react-icons/io";
 
-const inter = Inter({ subsets: ["latin"] });
+export type Token = {
+  symbol: string;
+  iconUrl: string;
+  resource_address: ResourceAddress;
+  amount: string;
+  price: number;
+};
 
 export default function Home() {
+  const [tokenFrom, setTokenFrom] = useState<null | Resource>(null);
+  const [tokenTo, setTokenTo] = useState<null | Resource>(null);
+  const [tokenFromAmount, setTokenFromAmount] = useState(0);
+  const [tokenToAmount, setTokenToAmount] = useState(0);
+  const [account, setAccount] =
+    useState<StateEntityDetailsVaultResponseItem | null>(null);
+  const [fungibleTokens, setFungibleTokens] = useState<Resource[]>();
+  const [transactionComplete, setTransactionComplete] = useState(false);
+  const [transactionFailed, setTransactionFailed] = useState(false);
+
+  const radix = useRadixToolkit();
+
+  const isValidateTransaction = () => {
+    let isValid = true;
+    if (
+      tokenFrom &&
+      tokenTo &&
+      tokenFrom?.resource_address === tokenTo?.resource_address
+    ) {
+      isValid = false;
+    }
+    if (!tokenFromAmount) {
+      isValid = false;
+    }
+    return isValid;
+  };
+
+  const getSwappableTokenData = useCallback(async () => {
+    const addresses = Object.keys(config?.resources)?.map(
+      (key) => config?.resources[key as Ticker]?.address,
+    );
+
+    if (addresses?.length) {
+      return await radix?.gatewayApi.state.innerClient
+        .stateEntityDetails({
+          stateEntityDetailsRequest: {
+            addresses,
+          },
+        })
+        ?.then((tokenData) => {
+          return tokenData;
+        });
+    }
+  }, [radix]);
+
+  useEffect(() => {
+    const subscription = radix?.walletApi.walletData$.subscribe(
+      async (walletData) => {
+        if (walletData?.accounts?.[0]) {
+          radix?.gatewayApi.state
+            .getEntityDetailsVaultAggregated(walletData?.accounts?.[0]?.address)
+            ?.then(async (accountData) => {
+              console.log({ accountData });
+              setAccount(accountData);
+
+              const swappableTokens = await getSwappableTokenData();
+
+              const accountFungibleTokens = getSquashedTokenData({
+                fungibleResources:
+                  accountData?.fungible_resources?.items || null,
+                swappableTokens: swappableTokens?.items || null,
+              });
+
+              setFungibleTokens(accountFungibleTokens);
+              setTokenFrom(accountFungibleTokens[0]);
+              setTokenTo(accountFungibleTokens[1]);
+            });
+        } else {
+          const swappableTokens = await getSwappableTokenData();
+          // accountData?.fungible_resources?.items,
+
+          const accountFungibleTokens = getSquashedTokenData({
+            fungibleResources: null, //accountData?.fungible_resources?.items,
+            swappableTokens: swappableTokens?.items || null,
+          });
+
+          setFungibleTokens(accountFungibleTokens);
+          setTokenFrom(accountFungibleTokens[0]);
+          setTokenTo(accountFungibleTokens[1]);
+        }
+        // doSomethingWithAccounts(walletData.accounts)
+      },
+    );
+
+    return () => {
+      subscription?.unsubscribe();
+    };
+  }, [radix, getSwappableTokenData]);
+
+  if (!fungibleTokens) return null;
+
   return (
-    <main
-      className={`flex min-h-screen flex-col items-center justify-between p-24 ${inter.className}`}
-    >
-      <div className="z-10 max-w-5xl w-full items-center justify-between font-mono text-sm lg:flex">
-        <p className="fixed left-0 top-0 flex w-full justify-center border-b border-gray-300 bg-gradient-to-b from-zinc-200 pb-6 pt-8 backdrop-blur-2xl dark:border-neutral-800 dark:bg-zinc-800/30 dark:from-inherit lg:static lg:w-auto  lg:rounded-xl lg:border lg:bg-gray-200 lg:p-4 lg:dark:bg-zinc-800/30">
-          Get started by editing&nbsp;
-          <code className="font-mono font-bold">src/pages/index.tsx</code>
-        </p>
-        <div className="fixed bottom-0 left-0 flex h-48 w-full items-end justify-center bg-gradient-to-t from-white via-white dark:from-black dark:via-black lg:static lg:h-auto lg:w-auto lg:bg-none">
-          <a
-            className="pointer-events-none flex place-items-center gap-2 p-8 lg:pointer-events-auto lg:p-0"
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+    <div className="flex min-h-screen flex-1 items-center justify-center">
+      <div className="relative flex min-h-[360px] max-w-[460px] flex-1 rounded-[20px] bg-white px-5 py-7">
+        {(transactionComplete || transactionFailed) && (
+          <button
+            className="border-none bg-transparent"
+            onClick={() => {
+              if (transactionComplete) {
+                setTokenFromAmount(0);
+                setTokenToAmount(0);
+              }
+
+              setTransactionComplete(false);
+              setTransactionFailed(false);
+            }}
           >
-            By{" "}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className="dark:invert"
-              width={100}
-              height={24}
-              priority
+            <IoIosClose
+              size={40}
+              color="#787882"
+              className="absolute right-4 top-4"
             />
-          </a>
-        </div>
+          </button>
+        )}
+        {transactionComplete || transactionFailed ? (
+          <div className="flex flex-1 items-center justify-center">
+            {transactionComplete ? (
+              <span className="text-center text-2xl font-semibold text-primary-300">
+                Your transaction was a success, {tokenFromAmount}{" "}
+                {tokenFrom?.symbol} are now in your wallet
+              </span>
+            ) : (
+              <span className="text-center text-2xl font-semibold text-error-500">
+                Upss, something went wrong
+              </span>
+            )}
+          </div>
+        ) : (
+          <div>
+            <div className="group flex h-28 items-center justify-center bg-light-400 ">
+              <div className="flex flex-col">
+                <span className="text-sm text-dark-400">You pay</span>
+                <input
+                  className="w-full bg-light-400 text-3xl text-dark-500 outline-none"
+                  value={tokenFromAmount}
+                  disabled={
+                    !account ||
+                    tokenFrom?.resource_address === tokenTo?.resource_address
+                  }
+                  onChange={(e) => {
+                    const value = Number(e.target.value);
+                    if (!isNaN(value)) {
+                      setTokenFromAmount(value);
+
+                      // Calculate the conversion ratio
+                      const conversionRatio =
+                        (tokenTo?.price || 0) / (tokenFrom?.price || 0);
+
+                      // Convert the amount from 'fromToken' to 'toToken'
+                      const convertedAmount = value * conversionRatio;
+                      setTokenToAmount(convertedAmount);
+                    }
+                  }}
+                />
+              </div>
+
+              <TokenDropdown
+                tokens={fungibleTokens}
+                onSelect={(_, token) => {
+                  setTokenFrom(token);
+                }}
+                selected={tokenFrom || fungibleTokens?.[0]}
+              />
+            </div>
+
+            <div className="group flex h-28 items-center justify-center bg-light-400 ">
+              <div className="flex flex-col">
+                <span className="text-sm text-dark-400">You receive</span>
+                <input
+                  disabled
+                  className="w-full bg-light-400 text-3xl text-dark-500 outline-none"
+                  value={tokenToAmount}
+                  onChange={(e) => {
+                    const value = Number(e.target.value);
+                    if (!isNaN(value)) {
+                      setTokenFromAmount(value);
+                    }
+                  }}
+                />
+              </div>
+
+              <TokenDropdown
+                tokens={fungibleTokens}
+                onSelect={(_, token) => {
+                  setTokenTo(token);
+                }}
+                selected={tokenTo || fungibleTokens?.[1]}
+              />
+            </div>
+            <Button
+              onClick={async () => {
+                const swapManifest = swapTokenManifest({
+                  accountAddress: account?.address as AccountAddress,
+                  fromTokenAddress:
+                    tokenFrom?.resource_address as ResourceAddress,
+                  swapperComponentAddress: config.components.swapper,
+                  amount: tokenFromAmount,
+                });
+                console.log({ swapManifest });
+                const result = await radix?.walletApi.sendTransaction({
+                  transactionManifest: swapManifest,
+                });
+                if (result?.isOk) {
+                  if (result?.error?.error) {
+                    setTransactionFailed(true);
+                  } else {
+                    setTransactionComplete(true);
+                  }
+
+                  return;
+                }
+                if (result?.isErr) {
+                  setTransactionFailed(true);
+                  return;
+                }
+              }}
+              disabled={!isValidateTransaction()}
+            >
+              Send to the Radix Wallet
+            </Button>
+          </div>
+        )}
+        {Number(tokenFrom?.amount) < tokenFromAmount && (
+          <small className="text-red-700">
+            You do not have enough {tokenFrom?.symbol} for this trade. You have{" "}
+            {tokenFrom?.amount} {tokenFrom?.symbol}.
+          </small>
+        )}
       </div>
-
-      <div className="relative flex place-items-center before:absolute before:h-[300px] before:w-full sm:before:w-[480px] before:-translate-x-1/2 before:rounded-full before:bg-gradient-radial before:from-white before:to-transparent before:blur-2xl before:content-[''] after:absolute after:-z-20 after:h-[180px] after:w-full sm:after:w-[240px] after:translate-x-1/3 after:bg-gradient-conic after:from-sky-200 after:via-blue-200 after:blur-2xl after:content-[''] before:dark:bg-gradient-to-br before:dark:from-transparent before:dark:to-blue-700/10 after:dark:from-sky-900 after:dark:via-[#0141ff]/40 before:lg:h-[360px]">
-        <Image
-          className="relative dark:drop-shadow-[0_0_0.3rem_#ffffff70] dark:invert"
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
-        />
-      </div>
-
-      <div className="mb-32 grid text-center lg:max-w-5xl lg:w-full lg:mb-0 lg:grid-cols-4 lg:text-left">
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Docs{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Find in-depth information about Next.js features and API.
-          </p>
-        </a>
-
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Learn{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Learn about Next.js in an interactive course with&nbsp;quizzes!
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Templates{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Discover and deploy boilerplate example Next.js&nbsp;projects.
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Deploy{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50 text-balance`}>
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
-      </div>
-    </main>
+    </div>
   );
 }
