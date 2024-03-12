@@ -31,6 +31,7 @@ export default function Home() {
   const [fungibleTokens, setFungibleTokens] = useState<Resource[]>();
   const [transactionComplete, setTransactionComplete] = useState(false);
   const [transactionFailed, setTransactionFailed] = useState(false);
+  const [transactionInProgress, setTransactionInProgress] = useState(false);
 
   const radix = useRadixToolkit();
 
@@ -48,6 +49,7 @@ export default function Home() {
     }
     return isValid;
   };
+
   // Uses the stateEntityDetails method to get detailed info on a resource from our config e.g. the XRD token.
   const getSwappableTokensEntityDetails = useCallback(async () => {
     const addresses = Object.keys(config?.resources)?.map(
@@ -66,6 +68,36 @@ export default function Home() {
         });
     }
   }, [radix]);
+
+  const handleTransaction = async () => {
+    setTransactionInProgress(true);
+
+    const swapManifest = swapTokenManifest({
+      accountAddress: account?.address as AccountAddress,
+      fromTokenAddress: tokenFrom?.resource_address as ResourceAddress,
+      swapperComponentAddress: config.components.swapper,
+      amount: tokenFromAmount,
+    });
+    const result = await radix?.walletApi.sendTransaction({
+      transactionManifest: swapManifest,
+    });
+    if (result?.isOk) {
+      // @ts-expect-error // result?.error?.error is not undefined and returns a string.
+      if (result?.error?.error) {
+        setTransactionFailed(true);
+        setTransactionInProgress(false);
+      } else {
+        setTransactionComplete(true);
+      }
+      setTransactionInProgress(false);
+      return;
+    }
+    if (result?.isErr) {
+      setTransactionFailed(true);
+      setTransactionInProgress(false);
+      return;
+    }
+  };
 
   // Handles the token data on load
   const handleTokenDetails = useCallback(
@@ -166,7 +198,8 @@ export default function Home() {
                   value={tokenFromAmount}
                   disabled={
                     !account ||
-                    tokenFrom?.resource_address === tokenTo?.resource_address
+                    tokenFrom?.resource_address === tokenTo?.resource_address ||
+                    transactionInProgress
                   }
                   onChange={(e) => {
                     const value = Number(e.target.value);
@@ -222,33 +255,8 @@ export default function Home() {
             </div>
             <Button
               className="mt-5"
-              onClick={async () => {
-                const swapManifest = swapTokenManifest({
-                  accountAddress: account?.address as AccountAddress,
-                  fromTokenAddress:
-                    tokenFrom?.resource_address as ResourceAddress,
-                  swapperComponentAddress: config.components.swapper,
-                  amount: tokenFromAmount,
-                });
-                const result = await radix?.walletApi.sendTransaction({
-                  transactionManifest: swapManifest,
-                });
-                if (result?.isOk) {
-                  // @ts-expect-error // result?.error?.error is not undefined and returns a string.
-                  if (result?.error?.error) {
-                    setTransactionFailed(true);
-                  } else {
-                    setTransactionComplete(true);
-                  }
-
-                  return;
-                }
-                if (result?.isErr) {
-                  setTransactionFailed(true);
-                  return;
-                }
-              }}
-              disabled={!isValidateTransaction()}
+              onClick={() => handleTransaction()}
+              disabled={!isValidateTransaction() || transactionInProgress}
             >
               Send to the Radix Wallet
             </Button>
