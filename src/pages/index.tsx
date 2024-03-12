@@ -257,6 +257,7 @@ export default function Home() {
               className="mt-5"
               onClick={() => handleTransaction()}
               disabled={!isValidateTransaction() || transactionInProgress}
+              loading={transactionInProgress}
             >
               Send to the Radix Wallet
             </Button>

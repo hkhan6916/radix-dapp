@@ -1,10 +1,12 @@
 import { HTMLAttributes, PropsWithChildren } from "react";
 import { twMerge } from "tailwind-merge";
+import { Spinner } from "../Spinner";
 
 export type ButtonProps = PropsWithChildren<
   HTMLAttributes<HTMLButtonElement>
 > & {
   disabled?: boolean;
+  loading?: boolean;
 };
 
 /**
@@ -15,7 +17,13 @@ export type ButtonProps = PropsWithChildren<
  * @property {ReactNode} children - The children to render inside the button.
  * @property {Token} selected - Whether to show the disabled variant.
  */
-const Button = ({ children, disabled, className, ...rest }: ButtonProps) => {
+const Button = ({
+  children,
+  disabled,
+  loading,
+  className,
+  ...rest
+}: ButtonProps) => {
   const baseClassName = twMerge(
     "font-bold text-xl w-full h-16 py-1 rounded-lg",
   );
@@ -36,7 +44,14 @@ const Button = ({ children, disabled, className, ...rest }: ButtonProps) => {
       className={disabled ? disabledButtonClassName : solidButtonClassName}
       {...rest}
     >
-      {children}
+      {loading ? (
+        <div className="flex flex-1 items-center justify-center">
+          {" "}
+          <Spinner size={40} />
+        </div>
+      ) : (
+        children
+      )}
     </button>
   );
 };
