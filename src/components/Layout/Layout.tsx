@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { ReactNode } from "react";
 
 declare global {
   namespace JSX {
@@ -7,13 +8,18 @@ declare global {
     }
   }
 }
-const Layout = ({ children }) => {
+
+export type LayoutProps = {
+  children: ReactNode;
+};
+
+const Layout = ({ children }: LayoutProps) => {
   const bgColorClassName = "bg-gradient-to-r from-light-300 to-primary-100";
 
   return (
     <>
       <nav
-        className={`py-6 pl-6 pr-8 border-b border-black flex flex-row justify-between ${bgColorClassName}`}
+        className={`flex flex-row justify-between border-b border-black py-6 pl-6 pr-8 ${bgColorClassName}`}
       >
         <Image
           src="/logo.svg"

@@ -9,6 +9,9 @@ import { AccountAddress, ResourceAddress, Ticker, config } from "@/util/config";
 import { TokenDropdown } from "@/components/TokenDropdown";
 import { swapTokenManifest } from "@/util/manifests/transactionManifest";
 import { IoIosClose } from "react-icons/io";
+import Lottie from "react-lottie-player";
+import successLottie from "../lotties/success.json";
+import { ImArrowDown } from "react-icons/im";
 
 export type Token = {
   symbol: string;
@@ -45,8 +48,8 @@ export default function Home() {
     }
     return isValid;
   };
-
-  const getSwappableTokenData = useCallback(async () => {
+  // Uses the stateEntityDetails method to get detailed info on a resource from our config e.g. the XRD token.
+  const getSwappableTokensEntityDetails = useCallback(async () => {
     const addresses = Object.keys(config?.resources)?.map(
       (key) => config?.resources[key as Ticker]?.address,
     );
@@ -64,6 +67,26 @@ export default function Home() {
     }
   }, [radix]);
 
+  // Handles the token data on load
+  const handleTokenDetails = useCallback(
+    async (accountData: StateEntityDetailsVaultResponseItem | null) => {
+      const swappableTokensEntityDetails =
+        await getSwappableTokensEntityDetails();
+
+      const accountFungibleTokens = getSquashedTokenData({
+        accountFungibleResources:
+          accountData?.fungible_resources?.items || null,
+        swappableTokensEntityDetails:
+          swappableTokensEntityDetails?.items || null,
+      });
+
+      setFungibleTokens(accountFungibleTokens);
+      setTokenFrom(accountFungibleTokens[0]);
+      setTokenTo(accountFungibleTokens[1]);
+    },
+    [getSwappableTokensEntityDetails],
+  );
+
   useEffect(() => {
     const subscription = radix?.walletApi.walletData$.subscribe(
       async (walletData) => {
@@ -74,45 +97,24 @@ export default function Home() {
               console.log({ accountData });
               setAccount(accountData);
 
-              const swappableTokens = await getSwappableTokenData();
-
-              const accountFungibleTokens = getSquashedTokenData({
-                fungibleResources:
-                  accountData?.fungible_resources?.items || null,
-                swappableTokens: swappableTokens?.items || null,
-              });
-
-              setFungibleTokens(accountFungibleTokens);
-              setTokenFrom(accountFungibleTokens[0]);
-              setTokenTo(accountFungibleTokens[1]);
+              handleTokenDetails(accountData);
             });
         } else {
-          const swappableTokens = await getSwappableTokenData();
-          // accountData?.fungible_resources?.items,
-
-          const accountFungibleTokens = getSquashedTokenData({
-            fungibleResources: null, //accountData?.fungible_resources?.items,
-            swappableTokens: swappableTokens?.items || null,
-          });
-
-          setFungibleTokens(accountFungibleTokens);
-          setTokenFrom(accountFungibleTokens[0]);
-          setTokenTo(accountFungibleTokens[1]);
+          handleTokenDetails(null);
         }
-        // doSomethingWithAccounts(walletData.accounts)
       },
     );
 
     return () => {
       subscription?.unsubscribe();
     };
-  }, [radix, getSwappableTokenData]);
+  }, [radix, getSwappableTokensEntityDetails, handleTokenDetails]);
 
   if (!fungibleTokens) return null;
 
   return (
     <div className="flex min-h-screen flex-1 items-center justify-center">
-      <div className="relative flex min-h-[360px] max-w-[460px] flex-1 rounded-[20px] bg-white px-5 py-7">
+      <div className="relative flex min-h-[360px] max-w-[460px] flex-1 flex-col rounded-[20px] bg-white px-5 pb-6 pt-7">
         {(transactionComplete || transactionFailed) && (
           <button
             className="border-none bg-transparent"
@@ -136,10 +138,18 @@ export default function Home() {
         {transactionComplete || transactionFailed ? (
           <div className="flex flex-1 items-center justify-center">
             {transactionComplete ? (
-              <span className="text-center text-2xl font-semibold text-primary-300">
-                Your transaction was a success, {tokenFromAmount}{" "}
-                {tokenFrom?.symbol} are now in your wallet
-              </span>
+              <div className="flex flex-1 flex-col items-center justify-center">
+                <Lottie
+                  loop={false}
+                  animationData={successLottie}
+                  play
+                  style={{ width: 150, height: 150 }}
+                />
+                <span className="text-center text-2xl font-semibold text-primary-300">
+                  Your transaction was a success, {tokenFromAmount}{" "}
+                  {tokenFrom?.symbol} are now in your wallet.
+                </span>
+              </div>
             ) : (
               <span className="text-center text-2xl font-semibold text-error-500">
                 Upss, something went wrong
@@ -147,8 +157,8 @@ export default function Home() {
             )}
           </div>
         ) : (
-          <div>
-            <div className="group flex h-28 items-center justify-center bg-light-400 ">
+          <div className="relative flex flex-col items-center justify-center">
+            <div className="group mb-3 flex h-28 items-center justify-center rounded-xl border border-solid border-primary-300 bg-light-400 px-4">
               <div className="flex flex-col">
                 <span className="text-sm text-dark-400">You pay</span>
                 <input
@@ -183,8 +193,10 @@ export default function Home() {
                 selected={tokenFrom || fungibleTokens?.[0]}
               />
             </div>
-
-            <div className="group flex h-28 items-center justify-center bg-light-400 ">
+            <div className="absolute -mt-20 flex size-10 items-center justify-center rounded-lg border border-solid border-primary-300 bg-light-300">
+              <ImArrowDown size={20} color="#8481E1" />
+            </div>
+            <div className="group flex h-28 items-center justify-center rounded-xl border border-solid border-primary-300 bg-light-400 px-4">
               <div className="flex flex-col">
                 <span className="text-sm text-dark-400">You receive</span>
                 <input
@@ -209,6 +221,7 @@ export default function Home() {
               />
             </div>
             <Button
+              className="mt-5"
               onClick={async () => {
                 const swapManifest = swapTokenManifest({
                   accountAddress: account?.address as AccountAddress,
@@ -217,11 +230,11 @@ export default function Home() {
                   swapperComponentAddress: config.components.swapper,
                   amount: tokenFromAmount,
                 });
-                console.log({ swapManifest });
                 const result = await radix?.walletApi.sendTransaction({
                   transactionManifest: swapManifest,
                 });
                 if (result?.isOk) {
+                  // @ts-expect-error // result?.error?.error is not undefined and returns a string.
                   if (result?.error?.error) {
                     setTransactionFailed(true);
                   } else {
@@ -242,7 +255,7 @@ export default function Home() {
           </div>
         )}
         {Number(tokenFrom?.amount) < tokenFromAmount && (
-          <small className="text-red-700">
+          <small className="mt-3 text-red-700">
             You do not have enough {tokenFrom?.symbol} for this trade. You have{" "}
             {tokenFrom?.amount} {tokenFrom?.symbol}.
           </small>

@@ -1,14 +1,13 @@
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { Button } from "../Button";
-import { MouseEvent, useState } from "react";
+import { Fragment, MouseEvent, useState } from "react";
 import Image from "next/image";
-import { Token } from "@/pages";
 import { Resource } from "@/util/helpers/getSquashedTokenData";
+import { IoMdArrowDropdown } from "react-icons/io";
 
 export type TokenDropdownProps = {
   tokens?: Resource[];
   selected?: Resource;
-  onSelect?: (e: MouseEvent<HTMLDivElement>, token: Token) => void;
+  onSelect?: (e: MouseEvent<HTMLDivElement>, token: Resource) => void;
 } & Partial<typeof DropdownMenu.Root>; // Allow for forwarding any optional props to the base radix ui dropdown used in this component
 
 /**
@@ -18,7 +17,7 @@ export type TokenDropdownProps = {
  *
  * @property {Token[]} tokens - The token data to render.
  * @property {Token} selected - The selected token.
- * @property {function} onSelect - A the select handler.
+ * @property {function} onSelect - The token selection handler.
  */
 const TokenDropdown = ({
   tokens = [],
@@ -27,12 +26,11 @@ const TokenDropdown = ({
   ...rest
 }: TokenDropdownProps) => {
   const [isOpen, setIsOpen] = useState(false);
-  console.log({ tokens });
   return (
     <DropdownMenu.Root onOpenChange={setIsOpen} open={isOpen} {...rest}>
       <DropdownMenu.Trigger>
-        <Button
-          className={`flex min-w-36 items-center bg-light-500 px-3 py-2 text-dark-500 ${isOpen ? "rounded-t-lg border border-b-0 border-solid border-primary-300" : "rounded-full"}`}
+        <button
+          className={`flex min-w-[136px] items-center justify-between bg-light-500 px-3 py-2 text-dark-500 ${isOpen ? "rounded-t-lg border border-b-0 border-solid border-primary-300" : "rounded-full"}`}
         >
           {!!selected?.iconUrl && (
             <Image
@@ -43,20 +41,24 @@ const TokenDropdown = ({
               alt="Token image"
             />
           )}
-          <span className={`text-dark-400 ${isOpen ? "text-lg" : ""}`}>
+          <span className={`ml-1 text-dark-400 ${isOpen ? "text-lg" : ""}`}>
             {selected?.symbol || "Select"}
           </span>
-        </Button>
+
+          <IoMdArrowDropdown
+            color="#787882"
+            className={`min-h-7 min-w-7 self-end ${isOpen ? "rotate-180" : ""}`}
+          />
+        </button>
       </DropdownMenu.Trigger>
-      <DropdownMenu.Content className="min-w-36 rounded-b-lg border border-t-0 border-solid border-primary-300 bg-light-500 px-3 py-2">
+      <DropdownMenu.Content className="min-w-[136px] rounded-b-lg border border-t-0 border-solid border-primary-300 bg-light-500">
         {tokens.map((token, i) =>
           isOpen &&
           token?.resource_address === selected?.resource_address ? null : (
-            <>
+            <Fragment key={`${token?.resource_address}${i}`}>
               <DropdownMenu.Item
-                className={`flex cursor-pointer flex-row items-center`}
+                className={`flex cursor-pointer flex-row items-center rounded-b-lg px-3 py-2 hover:bg-light-300`}
                 onClick={(e) => onSelect(e, token)}
-                key={`${token?.resource_address}${i}`}
               >
                 <Image
                   height={32}
@@ -66,13 +68,13 @@ const TokenDropdown = ({
                   alt="token icon image"
                 />
                 <span
-                  className={`text-dark-400 ${selected?.symbol === token?.symbol ? "ml-2 text-lg" : "text-base"}`}
+                  className={`ml-1 text-dark-400 ${selected?.symbol === token?.symbol ? "ml-2 text-lg" : "text-base"}`}
                 >
                   {token.symbol}
                 </span>
               </DropdownMenu.Item>
               <DropdownMenu.Separator />
-            </>
+            </Fragment>
           ),
         )}
       </DropdownMenu.Content>

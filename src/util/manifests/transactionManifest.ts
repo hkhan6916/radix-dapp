@@ -11,6 +11,11 @@ export type SwapToken = {
  * swapToken
  *
  * A function which creates a transcation manifest based on it's arguements
+ *
+ * @param {AccountAddress} accountAddress - The associated account address for the transaction.
+ * @param {ResourceAddress} fromTokenAddress - The address for the token to swap.
+ * @param {ComponentAddress} swapperComponentAddress - The address for the swapper component.
+ * @param {number} amount - The amount of the selected token to swap.
  */
 export const swapTokenManifest = ({
   accountAddress,
