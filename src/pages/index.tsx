@@ -24,6 +24,7 @@ export type Token = {
 export default function Home() {
   const [tokenFrom, setTokenFrom] = useState<null | Resource>(null);
   const [tokenTo, setTokenTo] = useState<null | Resource>(null);
+  // TODO: Should probably use ref here instead of state to reduce re-renders on state changes as a user types
   const [tokenFromAmount, setTokenFromAmount] = useState(0);
   const [tokenToAmount, setTokenToAmount] = useState(0);
   const [account, setAccount] =
