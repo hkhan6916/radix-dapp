@@ -14,8 +14,9 @@ export type ButtonProps = PropsWithChildren<
  *
  * Reusable Button component for handling click events
  *
- * @property {ReactNode} children - The children to render inside the button.
- * @property {Token} selected - Whether to show the disabled variant.
+ * @property {ReactNode} [children] - The children to render inside the button.
+ * @property {Token} [disabled] - Whether to show the disabled variant.
+ * @property {Token} [loading] - Whether to show a spinner within the button.
  */
 const Button = ({
   children,

@@ -5,9 +5,9 @@ import { Resource } from "@/util/helpers/getSquashedTokenData";
 import { IoMdArrowDropdown } from "react-icons/io";
 
 export type TokenDropdownProps = {
-  tokens?: Resource[];
-  selected?: Resource;
-  onSelect?: (e: MouseEvent<HTMLDivElement>, token: Resource) => void;
+  tokens: Resource[];
+  selected: Resource;
+  onSelect: (e: MouseEvent<HTMLDivElement>, token: Resource) => void;
 } & Partial<typeof DropdownMenu.Root>; // Allow for forwarding any optional props to the base radix ui dropdown used in this component
 
 /**
